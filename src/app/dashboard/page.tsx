@@ -1,3 +1,4 @@
+// src/app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,6 +13,7 @@ import {
   Legend,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceArea,
 } from "recharts";
 import {
   Waves,
@@ -43,6 +45,19 @@ const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), {
 });
 const CircleMarker = dynamic(
   () => import("react-leaflet").then((m) => m.CircleMarker),
+  { ssr: false }
+);
+
+// GeoSearchComponent (assuming you've added this in the previous step)
+const GeoSearchComponent = dynamic(
+  () =>
+    import("@/components/GeoSearchComponent").then((m) => m.GeoSearchComponent),
+  { ssr: false }
+);
+
+// New dynamic import for the MapMarkers component
+const MapMarkers = dynamic(
+  () => import("@/components/MapMarkers").then((mod) => mod.MapMarkers),
   { ssr: false }
 );
 
@@ -102,6 +117,7 @@ export default function DashboardPage() {
   const [showSubscribe, setShowSubscribe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [subscribeForm, setSubscribeForm] = useState({ name: "", email: "", place: "" });
+  const [defaultIcon, setDefaultIcon] = useState<any>(null);
 
   // Ask for geolocation
   useEffect(() => {
@@ -119,6 +135,24 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       if (Notification.permission === "default") Notification.requestPermission();
+    }
+  }, []);
+  
+  // Dynamically import Leaflet and create the default marker icon
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('leaflet').then((L) => {
+        const icon = new L.Icon({
+          iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+          iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+          shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowSize: [41, 41],
+        });
+        setDefaultIcon(icon);
+      });
     }
   }, []);
 
@@ -159,12 +193,18 @@ export default function DashboardPage() {
   const chartData = useMemo(() => {
     if (!data?.hourly) return [];
     const { time, wave_height, swell_wave_height, wind_wave_height } = data.hourly;
-    return time.map((t, i) => ({
-      time: t.split("T")[1] ?? t,
-      wave: wave_height?.[i] ?? 0,
-      swell: swell_wave_height?.[i] ?? 0,
-      windwave: wind_wave_height?.[i] ?? 0,
-    }));
+    return time.map((t, i) => {
+      const wave = wave_height?.[i] ?? 0;
+      const windwave = wind_wave_height?.[i] ?? 0;
+      const risk = computeRisk(wave, windwave);
+      return {
+        time: t.split("T")[1] ?? t,
+        wave: wave,
+        swell: swell_wave_height?.[i] ?? 0,
+        windwave: windwave,
+        risk: risk.level,
+      };
+    });
   }, [data]);
 
   const riskBadgeClasses =
@@ -196,6 +236,11 @@ export default function DashboardPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+  
+  // New handler for location changes from the search component
+  const handleLocationChange = (newLocation: Location) => {
+    setLocation(newLocation);
   };
 
   return (
@@ -266,7 +311,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Map & Sidebar */}
+        {/* Map & Chart Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="rounded-2xl overflow-hidden bg-white shadow-sm border border-slate-100 lg:col-span-2">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
@@ -290,7 +335,9 @@ export default function DashboardPage() {
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     attribution='&copy; OpenStreetMap &copy; CARTO'
                   />
-                  <Marker position={[location.lat, location.lon]} />
+                  {defaultIcon && (
+                    <Marker position={[location.lat, location.lon]} icon={defaultIcon} />
+                  )}
                   <CircleMarker
                     center={[location.lat, location.lon]}
                     radius={18}
@@ -310,7 +357,10 @@ export default function DashboardPage() {
                       </div>
                     </Popup>
                   </CircleMarker>
+                  {/* Map over severe storms and render markers */}
+                  <MapMarkers />
                   <ClickCatcher onPick={(loc) => setLocation(loc)} />
+                  <GeoSearchComponent onLocationFound={handleLocationChange} />
                 </MapContainer>
               )}
             </div>
@@ -337,6 +387,46 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* New Chart Section */}
+        {data && (
+          <div className="rounded-2xl bg-white p-5 shadow-sm border border-slate-100">
+            <h2 className="font-semibold text-slate-800 mb-4">24-Hour Wave & Wind-Wave Forecast</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis unit=" m" domain={[0, "auto"]} />
+                <Tooltip />
+                <Legend />
+
+                {/* ReferenceAreas for risk levels */}
+                <ReferenceArea y1={0} y2={1.2} fill="#16a34a" fillOpacity={0.1} />
+                <ReferenceArea y1={1.2} y2={2.5} fill="#eab308" fillOpacity={0.1} />
+                <ReferenceArea y1={2.5} y2={4} fill="#ef4444" fillOpacity={0.1} />
+
+                <Line
+                  type="monotone"
+                  dataKey="wave"
+                  stroke="#1E88E5"
+                  name="Wave Height"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="windwave"
+                  stroke="#4CAF50"
+                  name="Wind-Wave Height"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </main>
 
       {/* Subscribe Modal */}

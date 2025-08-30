@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { GeoSearchComponent } from "@/components/GeoSearchComponent";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -149,6 +150,9 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const handleLocationChange = (newLocation: Location) => {
+    setLocation(newLocation);
+  };
   // Fetch marine data from API
   const fetchMarine = async (lat: number, lon: number) => {
     setLoading(true);
@@ -367,73 +371,35 @@ export default function DashboardPage() {
             </div>
 
             <div className="relative h-[480px]">
-              {loading && (
-                <div className="absolute inset-0 z-10 grid place-items-center bg-white/80 backdrop-blur-sm">
-                  <div className="flex items-center gap-2 text-blue-600 bg-white rounded-full px-4 py-2 shadow-md">
-                    <Loader2 className="animate-spin" size={18} />
-                    <span className="text-sm font-medium">
-                      Fetching marine data…
-                    </span>
-                  </div>
-                </div>
-              )}
-
               {location && (
-                <MapContainer
-                  center={[location.lat, location.lon]}
-                  zoom={5}
-                  className="h-full w-full"
-                  scrollWheelZoom
-                >
+                <MapContainer center={[location.lat, location.lon]} zoom={5} className="h-full w-full" scrollWheelZoom>
                   <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                    attribution='&copy; OpenStreetMap &copy; CARTO'
                   />
                   <Marker position={[location.lat, location.lon]} />
                   <CircleMarker
                     center={[location.lat, location.lon]}
                     radius={18}
                     pathOptions={{
-                      color:
-                        risk.color === "red"
-                          ? "#ef4444"
-                          : risk.color === "yellow"
-                          ? "#eab308"
-                          : "#16a34a",
+                      color: risk.color === "red" ? "#ef4444" : risk.color === "yellow" ? "#eab308" : "#16a34a",
                       fillOpacity: 0.25,
                     }}
                   >
                     <Popup>
                       <div className="text-sm">
                         <div className="font-semibold">{location.name}</div>
-                        <div className="text-slate-600">
-                          Wave:{" "}
-                          {data?.hourly?.wave_height?.[0]?.toFixed(1) ?? "-"} m
-                        </div>
-                        <div className="text-slate-600">
-                          Wind-wave:{" "}
-                          {data?.hourly?.wind_wave_height?.[0]?.toFixed(1) ??
-                            "-"}{" "}
-                          m
-                        </div>
+                        <div className="text-slate-600">Wave: {data?.hourly?.wave_height?.[0]?.toFixed(1) ?? "-"} m</div>
+                        <div className="text-slate-600">Wind-wave: {data?.hourly?.wind_wave_height?.[0]?.toFixed(1) ?? "-"} m</div>
                         <div className="mt-1">
-                          Risk:{" "}
-                          <span
-                            className={`font-semibold ${
-                              risk.level === "High"
-                                ? "text-red-600"
-                                : risk.level === "Moderate"
-                                ? "text-yellow-600"
-                                : "text-green-600"
-                            }`}
-                          >
-                            {risk.level}
-                          </span>
+                          Risk: <span className={`font-semibold ${risk.level === "High" ? "text-red-600" : risk.level === "Moderate" ? "text-yellow-600" : "text-green-600"}`}>{risk.level}</span>
                         </div>
                       </div>
                     </Popup>
                   </CircleMarker>
                   <ClickCatcher onPick={(loc) => setLocation(loc)} />
+                  {/* Add the new GeoSearchComponent here */}
+                  <GeoSearchComponent onLocationFound={handleLocationChange} />
                 </MapContainer>
               )}
             </div>
@@ -520,7 +486,7 @@ export default function DashboardPage() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-400"
                 />
                 <input
-                  placeholder="Location (optional)"
+                  placeholder="Location"
                   value={subscribeForm.place}
                   onChange={(e) =>
                     setSubscribeForm({

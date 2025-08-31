@@ -28,25 +28,39 @@ import {
   Shield,
   RefreshCw,
 } from "lucide-react";
+import type {
+  MapContainerProps,
+  TileLayerProps,
+  MarkerProps,
+  PopupProps,
+  CircleMarkerProps,
+} from "react-leaflet";
 
-// Dynamically import react-leaflet bits to avoid SSR issues
 const MapContainer = dynamic(
   () => import("react-leaflet").then((m) => m.MapContainer),
   { ssr: false }
-);
-const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), {
-  ssr: false,
-});
-const Marker = dynamic(() => import("react-leaflet").then((m) => m.Marker), {
-  ssr: false,
-});
-const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), {
-  ssr: false,
-});
+) as React.ComponentType<MapContainerProps>;
+
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((m) => m.TileLayer),
+  { ssr: false }
+) as React.ComponentType<TileLayerProps>;
+
+const Marker = dynamic(
+  () => import("react-leaflet").then((m) => m.Marker),
+  { ssr: false }
+) as React.ComponentType<MarkerProps>;
+
+const Popup = dynamic(
+  () => import("react-leaflet").then((m) => m.Popup),
+  { ssr: false }
+) as React.ComponentType<PopupProps>;
+
 const CircleMarker = dynamic(
   () => import("react-leaflet").then((m) => m.CircleMarker),
   { ssr: false }
-);
+) as React.ComponentType<CircleMarkerProps>;
+
 
 // GeoSearchComponent (assuming you've added this in the previous step)
 const GeoSearchComponent = dynamic(

@@ -372,7 +372,7 @@ export default function DashboardPage() {
                     </Popup>
                   </CircleMarker>
                   {/* Map over severe storms and render markers */}
-                  <MapMarkers />
+                  <MapMarkers storms={[]}/>
                   <ClickCatcher onPick={(loc) => setLocation(loc)} />
                   <GeoSearchComponent onLocationFound={handleLocationChange} />
                 </MapContainer>

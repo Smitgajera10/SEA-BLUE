@@ -1,77 +1,72 @@
-// src/components/MapMarkers.tsx
 "use client";
-
-import { useEffect, useState } from "react";
-import { Marker, Popup, Polyline } from "react-leaflet";
+import React from "react";
+import type { LatLngTuple } from "leaflet";
+import { Polyline, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 
-type SevereStormEvent = {
+// simple icon (adjust URL/path as needed)
+const stormIcon = new L.Icon({
+  iconUrl: "/marker-icon.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+});
+
+// types depending on your API shape
+type TrackPointArray = number[]; // e.g. [lat, lon] or [lon, lat]
+type TrackPointObj = { lat: number; lon: number };
+type RawTrackPoint = TrackPointArray | TrackPointObj;
+
+type Storm = {
   id: string;
-  title: string;
-  geometry: {
-    coordinates: number[];
-    date: string;
-  }[];
+  name?: string;
+  // adjust this to match your real data shape
+  track: RawTrackPoint[];
 };
 
-export function MapMarkers() {
-  const [severeStorms, setSevereStorms] = useState<SevereStormEvent[]>([]);
-  const [stormIcon, setStormIcon] = useState<any>(null);
-
-  // Define the custom storm icon inside the client component to avoid SSR errors
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const icon = new L.Icon({
-        iconUrl: '/storm-icon.png',
-        iconSize: [25, 25],
-      });
-      setStormIcon(icon);
-    }
-  }, []);
-
-  // Fetch severe storm data from your API
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const res = await fetch("/api/events");
-        const data = await res.json();
-        setSevereStorms(data.severeStorms || []);
-      } catch (err) {
-        console.error("Failed to fetch severe storms:", err);
+export function MapMarkers({ storms }: { storms: Storm[] }) {
+  // helper to convert a raw point into LatLngTuple | null
+  const toLatLngTuple = (p: RawTrackPoint): LatLngTuple | null => {
+    if (Array.isArray(p)) {
+      // Only accept arrays with at least 2 numbers
+      if (p.length >= 2 && typeof p[0] === "number" && typeof p[1] === "number") {
+        // IMPORTANT: confirm whether API uses [lat, lon] or [lon, lat]
+        // If API is [lon, lat], swap here: return [p[1], p[0]] as LatLngTuple;
+        return [p[0], p[1]] as LatLngTuple; // <-- assume [lat, lon]
       }
-    };
-    fetchEvents();
-  }, []);
-
-  if (!stormIcon) return null; // Don't render until the icon is loaded
+      return null;
+    }
+    // object form
+    if (p && typeof (p as TrackPointObj).lat === "number" && typeof (p as TrackPointObj).lon === "number") {
+      return [(p as TrackPointObj).lat, (p as TrackPointObj).lon] as LatLngTuple;
+    }
+    return null;
+  };
 
   return (
     <>
-      {severeStorms.map((storm) => {
-        // Extract all coordinates for the polyline
-        const trackPoints = storm.geometry.map((point) => [
-          point.coordinates[1],
-          point.coordinates[0],
-        ]);
-        
-        // Get the last point for the marker
-        const lastPoint = trackPoints[trackPoints.length - 1];
+      {storms.map((storm) => {
+        // normalize + filter invalid points
+        const trackPoints: LatLngTuple[] = storm.track
+          .map(toLatLngTuple)
+          .filter((pt): pt is LatLngTuple => !!pt);
+
+        if (trackPoints.length === 0) return null;
+
+        const lastPoint: LatLngTuple = trackPoints[trackPoints.length - 1];
 
         return (
-          <div key={storm.id}>
-            {/* Draw the polyline to show the storm track */}
+          <React.Fragment key={storm.id}>
             <Polyline positions={trackPoints} color="red" weight={3} opacity={0.6} />
-
-            {/* Place a marker at the last known position */}
             <Marker position={lastPoint} icon={stormIcon}>
               <Popup>
-                <div className="font-semibold">{storm.title}</div>
-                <div className="text-xs text-slate-500">
-                  Last Update: {new Date(storm.geometry[storm.geometry.length - 1].date).toLocaleString()}
+                <div>
+                  <strong>{storm.name ?? storm.id}</strong>
+                  <div>Last: {lastPoint[0].toFixed(3)}, {lastPoint[1].toFixed(3)}</div>
                 </div>
               </Popup>
             </Marker>
-          </div>
+          </React.Fragment>
         );
       })}
     </>

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start"
+    "start": "next start",
+    "risk-cron": "node ../../src/cron/riskScheduler.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
